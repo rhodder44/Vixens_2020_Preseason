@@ -1,0 +1,19 @@
+---
+title: "initial_read"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Load Packages, message = FALSE}
+library(tidyverse)
+```
+
+```{r Read Data}
+
+match_raw <- read.csv()
+```
+
+test commit
