@@ -1,19 +1,184 @@
 ---
 title: "initial_read"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+source("catapult_clean_function.R")
 ```
 
 ```{r Load Packages, message = FALSE}
 library(tidyverse)
+library(searchable)
+library(stringr)
+library(plotly)
 ```
 
 ```{r Read Data}
-
-match_raw <- read.csv()
+match_raw <- read.csv("Data/match_raw.csv")
+train_raw <- read.csv("Data/train_raw.csv")
 ```
 
-test commit
+
+
+```{r Manipulate and Clean data}
+
+# Clean name variable, rename catapult metrics
+match_clean <- CleanCatapult(match_raw)
+train_clean <- CleanCatapult(train_raw)
+
+# add Non-Match played players to match df, and reduce all metrics by 5%
+played <- match_clean %>%
+  dplyr::filter(!grepl('Sacha McDonald|Tayla Honey|Kate Eddy|Jacqueline Newton', name))
+  
+newton <- played %>%
+  mutate(name = replace(name, name == "Emily Mannix ", "Jacqueline Newton ")) %>%
+  mutate_if(is.numeric, ~ . *0.95) %>%
+  dplyr::filter(grepl('Jacqueline Newton', name))
+
+eddy <- played %>%
+  mutate(name = replace(name, name == "Joanna Weston ", "Kate Eddy ")) %>%
+  mutate_if(is.numeric, ~ . *0.95) %>%
+  dplyr::filter(grepl('Kate Eddy', name))
+  
+sacha <- played %>%
+  mutate(name = replace(name, name == "Tegan Philip ", "Sacha McDonald ")) %>%
+  mutate_if(is.numeric, ~ . *0.95) %>%
+  dplyr::filter(grepl('Sacha McDonald', name))
+
+honey <- played %>%
+  mutate(name = replace(name, name == "Kate Moloney ", "Tayle Honey ")) %>%
+  mutate_if(is.numeric, ~ . *0.95) %>%
+  dplyr::filter(grepl('Tayla Honey', name))
+
+smith <- played %>%
+  mutate(name = replace(name, name == "Joanna Weston ", "Allie Smith ")) %>%
+  mutate_if(is.numeric, ~ . *0.95) %>%
+  dplyr::filter(grepl('Allie Smith', name))
+
+elle <- played %>%
+  mutate(name = replace(name, name == "Kate Moloney ", "Elle McDonald ")) %>%
+  mutate_if(is.numeric, ~ . *0.95) %>%
+  dplyr::filter(grepl('Elle McDonald', name))
+
+cransberg <- played %>%
+  mutate(name = replace(name, name == "Elizabeth Watson ", "Jordan Cransberg ")) %>%
+  mutate_if(is.numeric, ~ . *0.95) %>%
+  dplyr::filter(grepl('Jordan Cransberg', name))
+
+match_clean <- rbind(played, newton, eddy, sacha, honey, smith, elle, cransberg)
+
+
+
+
+# merge match and train
+combined    <- rbind(match_clean, train_clean)
+```
+
+
+```{r Create % Match dataframe}
+
+# create % match intensity for each player for each drill
+combined_wide <- merge(match_clean, train_clean, by = "name")
+
+train_percent <- combined_wide %>%
+  mutate(playerload_min           = (Player.Load.Per.Min.y      / Player.Load.Per.Min.x) * 100,
+         jumps_min                = (jumps_min.y                / jumps_min.x) * 100 ,
+         explosive_efforts_min    = (explosive_efforts_min.y    / explosive_efforts_min.x) * 100,
+         accelerations_min        = (accelerations_min.y        / accelerations_min.x) * 100,
+         decelerations_min        = (decelerations_min.y        / decelerations_min.x) * 100,
+         change_of_directions_min = (change_of_directions_min.y / change_of_directions_min.x) * 100,
+         drill                    = drill.y,
+         duration                 = duration.y) %>%
+  select(-contains(".")) %>%
+  mutate_if(is.numeric, round, 2) %>%
+  mutate(position = ifelse(name == "Caitlin Thwaites ", "FWD",    # add position group and position
+                    ifelse(name == "Elizabeth Watson ", "MID", 
+                    ifelse(name == "Emily Mannix ", "DEF", 
+                    ifelse(name == "Jacqueline Newton ", "DEF",
+                    ifelse(name == "Kate Moloney ", "MID",
+                    ifelse(name == "Mwai Kumwenda ", "FWD",
+                    ifelse(name == "Tegan Philip ", "FWD",
+                    ifelse(name == "Allie Smith ", "DEF",
+                    ifelse(name == "Elle McDonald ", "MID",
+                    ifelse(name == "Joanna Weston ", "DEF",
+                    ifelse(name == "Jordan Cransberg ", "MID",
+                    ifelse(name == "Kadie Ann Dehaney ", "DEF",
+                    ifelse(name == "Kate Eddy ", "DEF",
+                    ifelse(name == "Sacha McDonald ", "FWD","" ))))))))))))))) %>%
+  select(name, position, drill, duration, everything()) %>%
+  dplyr::filter(!grepl('Rehab Conditioning', drill)) %>%
+  dplyr::filter(!grepl('Warm Up Fwd', drill)) %>%
+  dplyr::filter(!grepl('Specialist Mid', drill)) %>%
+  dplyr::filter(!grepl('Specialist Fwd', drill)) %>%
+  dplyr::filter(!grepl('Specialist Def', drill)) %>%
+  dplyr::filter(!grepl('Finisher Mid Only', drill)) %>%
+  dplyr::filter(!grepl('Cecil', drill))
+
+  
+```
+
+
+
+```{r Create Outlier YES/NO }
+
+# Group by  drill and create Z SCORE
+
+quartiles <- train_percent %>%
+  group_by(drill) %>%
+  mutate(pl_z        = (playerload_min - mean(playerload_min)) / sd(playerload_min),
+         jumps_z     = (jumps_min - mean(jumps_min)) / sd(jumps_min),
+         explosive_z = (explosive_efforts_min - mean(explosive_efforts_min)) / sd(explosive_efforts_min),
+         accel_z     = (accelerations_min - mean(accelerations_min)) / sd(accelerations_min),
+         decel_z     = (decelerations_min - mean(decelerations_min)) / sd(decelerations_min),
+         cod_z       = (change_of_directions_min - mean(change_of_directions_min)) / sd(change_of_directions_min)) %>%
+
+# add yes/no if players variable is below or above 25 - 75%
+
+  mutate(playerload_mino           = ifelse(pl_z        > 1.5, "HIGH", ifelse(pl_z        < -1.5, "LOW", "NORMAL")),
+         jumps_mino                = ifelse(jumps_z     > 1.5, "HIGH", ifelse(jumps_z     < -1.5, "LOW", "NORMAL")),
+         explosive_efforts_mino    = ifelse(explosive_z > 1.5, "HIGH", ifelse(explosive_z < -1.5, "LOW", "NORMAL")),
+         accelerations_mino        = ifelse(accel_z     > 1.5, "HIGH", ifelse(accel_z     < -1.5, "LOW", "NORMAL")),
+         decelerations_mino        = ifelse(decel_z     > 1.5, "HIGH", ifelse(decel_z     < -1.5, "LOW", "NORMAL")),
+         change_of_directions_mino = ifelse(cod_z       > 1.5, "HIGH", ifelse(cod_z       < -1.5, "LOW", "NORMAL"))) %>%
+  
+# change NA's to NORAML
+ mutate(playerload_mino           = replace_na(playerload_mino, "NORMAL"),
+        jumps_mino                = replace_na(jumps_mino, "NORMAL"),
+        explosive_efforts_mino    = replace_na(explosive_efforts_mino, "NORMAL"),
+        accelerations_mino        = replace_na(accelerations_mino, "NORMAL"),
+        decelerations_mino        = replace_na(decelerations_mino, "NORMAL"),
+        change_of_directions_mino = replace_na(change_of_directions_mino, "NORMAL"))
+```
+
+
+```{r Create INITIAL PLOT for Shiny}
+
+
+
+ggplot(quartiles, aes(x = jumps_min, y = drill, colour = jumps_mino, label = name)) +
+  geom_point(size = 3) +
+  geom_vline(xintercept = 100, linetype = "dashed") +
+  scale_color_manual(values = c("#F8766D", "#619CFF", "grey80" ))
+  
+
+
+```
+
+
+```{r Interactive Plotly}
+# ggplotly(p)
+```
+
+```{r Split into variable }
+
+```
+
+```{r}
+# write to csv, for clean use in Shiny App
+write.csv(quartiles, "drill_2020_data.csv")
+```
