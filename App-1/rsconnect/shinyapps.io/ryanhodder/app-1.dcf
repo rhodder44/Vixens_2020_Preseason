@@ -1,0 +1,10 @@
+name: app-1
+title:
+username:
+account: ryanhodder
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2315582
+bundleId: 3160213
+url: https://ryanhodder.shinyapps.io/app-1/
+when: 1589776707.00482

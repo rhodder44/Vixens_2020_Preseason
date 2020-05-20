@@ -21,6 +21,7 @@ library(plotly)
 ```{r Read Data}
 match_raw <- read.csv("Data/match_raw.csv")
 train_raw <- read.csv("Data/train_raw.csv")
+   unique(quartiles$name)
 ```
 
 
@@ -175,7 +176,7 @@ ggplot(quartiles, aes(x = jumps_min, y = drill, colour = jumps_mino, label = nam
 ```
 
 ```{r Split into variable }
-
+t <- vixens_data %>% dplyr::filter(name == player)
 ```
 
 ```{r}
