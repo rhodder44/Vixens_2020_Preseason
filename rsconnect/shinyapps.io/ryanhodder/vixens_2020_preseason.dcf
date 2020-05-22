@@ -4,7 +4,7 @@ username:
 account: ryanhodder
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
-appId: 2315981
-bundleId: 3160183
+appId: 2335965
+bundleId: 3174578
 url: https://ryanhodder.shinyapps.io/vixens_2020_preseason/
-when: 1589776181.21319
+when: 1590062599.00492
